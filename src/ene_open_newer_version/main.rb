@@ -1,10 +1,11 @@
 module Eneroth
   module OpenNewerVersion
-    if !Sketchup.platform == :platform_win
-      UI.messagebox("#{EXTENSION.name} is only supported on Windows.")
+    platform = Sketchup.platform
+    if ![:platform_win, :platform_osx].include?(platform)
+      UI.messagebox("#{EXTENSION.name} is only supported on Windows and macOS.")
     elsif Sketchup.respond_to?(:is_64bit?) && !Sketchup.is_64bit?
       # Can't detect and handle 32 bitness in SU 2014 :( .
-      UI.messagebox("#{EXTENSION.name} requires 64 bit Windows.")
+      UI.messagebox("#{EXTENSION.name} requires 64-bit SketchUp.")
     elsif Sketchup.version.to_i < 14
       UI.messagebox("#{EXTENSION.name} requires SketchUp 2014 or newer.")
     else

@@ -42,23 +42,93 @@ module Eneroth
         UI.savepanel(title, directory, filename)
       end
 
-      # Run system call without flashing command line window on Windows.
-      # Runs asynchronously.
-      # Windows only hack.
+      # Get platform-specific converter executable path.
       #
-      # @param cmd String.
-      #
-      # @return [Void].
-      def self.system_call(cmd)
-        # HACK: Run the command through a VBS script to avoid flashing command line
-        # window.
-        file = Tempfile.new(["cmd", ".vbs"])
-        file.write("Set WshShell = CreateObject(\"WScript.Shell\")\n")
-        file.write("WshShell.Run \"#{cmd.gsub('"', '""')}\", 0\n")
-        file.close
-        UI.openURL("file://#{file.path}")
+      # @return [String]
+      def self.converter_path
+        case Sketchup.platform
+        when :platform_win
+          File.join(PLUGIN_DIR, "bin", "ConvertVersion.exe")
+        when :platform_osx
+          File.join(PLUGIN_DIR, "bin", "ConvertVersion")
+        else
+          raise NotImplementedError, "Unsupported platform"
+        end
+      end
 
-        nil
+      # Ensure converter executable is present and runnable.
+      #
+      # @param path [String]
+      #
+      # @return [Boolean]
+      def self.ensure_converter_available(path)
+        unless File.exist?(path)
+          UI.messagebox("#{EXTENSION.name} is missing its converter executable:\n#{path}")
+          return false
+        end
+
+        if Sketchup.platform == :platform_osx && !File.executable?(path)
+          File.chmod(0755, path)
+        end
+
+        true
+      rescue SystemCallError => error
+        UI.messagebox("#{EXTENSION.name} cannot run its converter executable:\n#{error.message}")
+        false
+      end
+
+      # Get bundled framework/library search paths for the macOS converter.
+      # The converter must use a SketchUpAPI.framework compatible with the
+      # target macOS/SketchUp runtime.
+      #
+      # @return [Array<String>]
+      def self.macos_framework_paths
+        paths = [
+          File.join(PLUGIN_DIR, "bin", "SU2026"),
+          File.join(PLUGIN_DIR, "bin", "Frameworks")
+        ]
+
+        paths.select { |path| File.directory?(path) }.uniq
+      end
+
+      # Environment used to let the macOS converter find bundled frameworks.
+      #
+      # @return [Hash]
+      def self.macos_system_environment
+        paths = macos_framework_paths
+        return {} if paths.empty?
+
+        env = {}
+        framework_paths = [ENV["DYLD_FRAMEWORK_PATH"]].compact + paths
+        library_paths = [ENV["DYLD_LIBRARY_PATH"]].compact + paths
+        env["DYLD_FRAMEWORK_PATH"] = framework_paths.reject { |path| path.empty? }.join(":")
+        env["DYLD_LIBRARY_PATH"] = library_paths.reject { |path| path.empty? }.join(":")
+        env
+      end
+
+      # Run converter without flashing command line window on Windows.
+      #
+      # @param source [String]
+      # @param target [String]
+      #
+      # @return [Boolean]
+      def self.system_call(source, target)
+        path = converter_path
+        return false unless ensure_converter_available(path)
+
+        if Sketchup.platform == :platform_win
+          cmd = %("#{path}" "#{source}" "#{target}" #{SU_VERSION})
+          file = Tempfile.new(["cmd", ".vbs"])
+          file.write("Set WshShell = CreateObject(\"WScript.Shell\")\n")
+          file.write("WshShell.Run \"#{cmd.gsub('"', '""')}\", 0\n")
+          file.close
+          UI.openURL("file://#{file.path}")
+          true
+        elsif Sketchup.platform == :platform_osx
+          system(macos_system_environment, path, source, target, SU_VERSION.to_s)
+        else
+          false
+        end
       end
 
       # Run block once a file has been created.
@@ -94,14 +164,25 @@ module Eneroth
       def self.convert_and_open(source, target)
         Sketchup.status_text = "Converting model to supported format..."
 
-        # Since the hack for running the system command without a flashing window
-        # makes the call asynchronous, we need to wait to open the converted model
-        # until its file exists. To check for file creation, we must first make sure
-        # there is no existing file by the same name already.
+        # To avoid opening a stale file, make sure there is no existing file by
+        # the same name before launching the converter.
         File.delete(target) if File.exist?(target)
 
-        system_call(%("#{PLUGIN_DIR}/bin/ConvertVersion" "#{source}" "#{target}" #{SU_VERSION}))
-        on_exist(target, false) { Sketchup.open_file(target) }
+        success = system_call(source, target)
+        unless success
+          Sketchup.status_text = ""
+          UI.messagebox("#{EXTENSION.name} couldn't convert '#{File.basename(source)}'.")
+          return nil
+        end
+
+        if Sketchup.platform == :platform_win
+          on_exist(target, false) { Sketchup.open_file(target) }
+        elsif File.exist?(target)
+          Sketchup.open_file(target)
+        else
+          Sketchup.status_text = ""
+          UI.messagebox("#{EXTENSION.name} couldn't convert '#{File.basename(source)}'.")
+        end
 
         nil
       end
