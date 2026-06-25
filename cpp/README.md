@@ -6,25 +6,37 @@ it and just focus on the SketchUp Ruby extension.
 
 # Set Up Guide
 
-## Windows
+## Windows with Zig
 
-1. Open the Visual Studio solution (ConvertVersion.sln).
+The Windows converter is a standalone x64 console executable. It builds
+without SketchUp SDK headers or `.lib` files by declaring only the small C
+API surface used in `cpp/main.cpp` and linking against the checked-in
+`src/ene_open_newer_version/bin/SketchUpAPI.dll`.
 
-2. Open properties of the ConvertVersion project (right click > Properties).
+Required inputs:
 
-3. Make sure _All Configurations_ is selected in the Configurations drop down.
+- Zig 0.16.0 with `zig c++` available on `PATH`.
+- The checked-in `src/ene_open_newer_version/bin/SketchUpAPI.dll`.
+- The checked-in `src/ene_open_newer_version/bin/SketchUpCommonPreferences.dll`,
+  which is loaded by `SketchUpAPI.dll` at runtime.
 
-4. Update _Configuration Properties > C/C++ > Include Directories_ to refer
-to where the
-[SketchUp SDK](https://extensions.sketchup.com/en/developer_center/sketchup_sdk)
-headers are located on your machine.
+From the repository root:
 
-5. Update _Configuration Properties > Linker > Additional Library
-Directories_ to refer to where the SketchUp SDK binaries are located on your
-machine.
+```sh
+make build-windows
+```
 
-6. Update _Configuration Properties > Build Events > Post-Build Events > Command
-line_ to refer to where the Sketchup SDK binaries are on your machine.
+Equivalent Zig command:
+
+```sh
+zig c++ -target x86_64-windows-gnu \
+  -std=c++11 \
+  -O2 \
+  -DWIN32 -DNDEBUG -D_CONSOLE \
+  cpp/main.cpp \
+  src/ene_open_newer_version/bin/SketchUpAPI.dll \
+  -o src/ene_open_newer_version/bin/ConvertVersion.exe
+```
 
 ## macOS with Zig
 
@@ -45,6 +57,12 @@ Required inputs:
 - The checked-in `src/ene_open_newer_version/bin/SU2026/SketchUpAPI.framework`.
 
 From the repository root:
+
+```sh
+make build-macos
+```
+
+Equivalent Zig command:
 
 ```sh
 zig c++ -target x86_64-macos.13.0 \
@@ -117,12 +135,11 @@ converter's rpath points at `@executable_path/SU2026`, so keep
 
 # Use updated program in SketchUp Ruby Extension
 
-After building a new Windows `ConvertVersion.exe`, copy it into
-`src/ene_open_newer_version/bin/` to make it a part of the Ruby extension. Also
-copy the most recent `SketchUpAPI.dll` and `SketchUpCommonPreferences.dll` to
-this directory.
+`make build-windows` writes `src/ene_open_newer_version/bin/ConvertVersion.exe`.
+Keep the checked-in `SketchUpAPI.dll` and `SketchUpCommonPreferences.dll` in
+the same directory so Windows can resolve the runtime dependency.
 
-After building a new macOS `ConvertVersion`, copy it into
-`src/ene_open_newer_version/bin/` and make it executable. Keep the SU2026
-framework directory at `src/ene_open_newer_version/bin/SU2026/` so the
-converter's `@executable_path/SU2026` rpath can resolve it.
+`make build-macos` writes `src/ene_open_newer_version/bin/ConvertVersion` and
+makes it executable. Keep the SU2026 framework directory at
+`src/ene_open_newer_version/bin/SU2026/` so the converter's
+`@executable_path/SU2026` rpath can resolve it.
