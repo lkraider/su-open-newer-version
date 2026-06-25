@@ -59,6 +59,58 @@ zig c++ -target x86_64-macos.13.0 \
 chmod 755 src/ene_open_newer_version/bin/ConvertVersion
 ```
 
+### Prepare the packaged framework
+
+Static linking is not used because the SU2026 input is a dynamic
+`SketchUpAPI.framework`, not a static library.
+
+`SketchUpAPI.framework/Versions/A/SketchUpAPI` directly declares loads for all
+seven nested dylibs, so all seven must remain packaged:
+
+- `libCommonUnits.dylib`
+- `libCommonGeometry.dylib`
+- `libCommonGeoutils.dylib`
+- `libCommonImage.dylib`
+- `libCommonUtils.dylib`
+- `libCommonZip.dylib`
+- `libCommonPreferences.dylib`
+
+The supported size reduction is thinning every framework Mach-O binary to
+`x86_64`, because SketchUp 2017 Make is x86_64-only.
+
+```sh
+framework=src/ene_open_newer_version/bin/SU2026/SketchUpAPI.framework/Versions/A
+for binary in "$framework/SketchUpAPI" "$framework"/Frameworks/*.dylib; do
+  tmp="$binary.thin"
+  lipo "$binary" -thin x86_64 -output "$tmp"
+  mv "$tmp" "$binary"
+  codesign --remove-signature "$binary" 2>/dev/null || true
+done
+```
+
+Verify the packaged framework after thinning:
+
+```sh
+python3 - <<'PY'
+from pathlib import Path
+import struct
+base = Path('src/ene_open_newer_version/bin/SU2026/SketchUpAPI.framework/Versions/A')
+expected = {
+    'libCommonUnits.dylib', 'libCommonGeometry.dylib', 'libCommonGeoutils.dylib',
+    'libCommonImage.dylib', 'libCommonUtils.dylib', 'libCommonZip.dylib',
+    'libCommonPreferences.dylib'
+}
+binaries = [base / 'SketchUpAPI'] + sorted((base / 'Frameworks').glob('*.dylib'))
+seen_nested = {p.name for p in (base / 'Frameworks').glob('*.dylib')}
+assert expected == seen_nested
+for p in binaries:
+    data = p.read_bytes()
+    assert struct.unpack_from('<I', data, 0)[0] == 0xfeedfacf, p
+    assert struct.unpack_from('<I', data, 4)[0] == 0x1000007, p
+print('SU2026 packaged framework is thin x86_64 with required dylibs')
+PY
+```
+
 The remaining unavoidable native dependency is SketchUp's C API framework. The
 converter's rpath points at `@executable_path/SU2026`, so keep
 `SU2026/SketchUpAPI.framework` next to the built `ConvertVersion` executable.
