@@ -1,6 +1,7 @@
 // Minimal SketchUp C API declarations used by this converter.
-// This intentionally avoids depending on SDK headers when only the framework is
-// available. Keep these declarations limited to the functions/types used below.
+// This intentionally avoids depending on SDK headers when only the packaged
+// SketchUp API runtime is available. Keep these declarations limited to the
+// functions/types used below.
 
 typedef int SUResult;
 
