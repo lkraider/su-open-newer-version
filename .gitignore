@@ -259,3 +259,10 @@ paket-files/
 # Python Tools for Visual Studio (PTVS)
 __pycache__/
 *.pyc
+
+# Local toolchains and SketchUp conversion fixtures.
+/.tools/
+/*.skp
+
+# Local SDK experiments not used by the packaged converter.
+/src/ene_open_newer_version/bin/SU2017/
