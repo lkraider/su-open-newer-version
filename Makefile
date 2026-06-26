@@ -2,7 +2,8 @@
 
 EXTENSION_NAME := ene_open_newer_version
 SRC_DIR := src
-RBZ = $(EXTENSION_NAME)-$(shell git rev-parse --short HEAD).rbz
+VERSION ?= $(shell git describe --tags --always --dirty | sed 's/^v//')
+RBZ = $(EXTENSION_NAME)-$(VERSION).rbz
 
 ZIG ?= zig
 ZIG_CXXFLAGS ?= -std=c++11 -O2
@@ -15,13 +16,20 @@ WINDOWS_CONVERTER := $(BIN_DIR)/ConvertVersion.exe
 WINDOWS_SKETCHUP_API_DLL := $(BIN_DIR)/SketchUpAPI.dll
 WINDOWS_COMMON_PREFS_DLL := $(BIN_DIR)/SketchUpCommonPreferences.dll
 
-.PHONY: package build build-zig build-macos build-zig-macos build-windows build-zig-windows thin
+.PHONY: package build build-zig build-macos build-zig-macos build-windows build-zig-windows thin version
 
 package:
 	git diff --quiet -- "$(SRC_DIR)" || { echo "Refusing to package with unstaged changes under $(SRC_DIR)" >&2; exit 1; }
 	git diff --cached --quiet -- "$(SRC_DIR)" || { echo "Refusing to package with staged changes under $(SRC_DIR)" >&2; exit 1; }
 	test ! -e "$(RBZ)" || { echo "$(RBZ) already exists" >&2; exit 1; }
-	git archive --format=zip --output="$(RBZ)" HEAD:$(SRC_DIR) $(EXTENSION_NAME).rb $(EXTENSION_NAME)
+	rm -rf .build/package
+	mkdir -p .build/package
+	git archive --format=zip --output=.build/package.zip HEAD:$(SRC_DIR)
+	unzip -qo .build/package.zip -d .build/package
+	rm -f .build/package.zip
+	echo "VERSION = '$(VERSION)'" > .build/package/$(EXTENSION_NAME)/version.rb
+	cd .build/package && python3 -c 'import sys,zipfile,os; z=zipfile.ZipFile(os.path.join("..","..","$(RBZ)"),"w",zipfile.ZIP_DEFLATED); [z.write(os.path.join(r,f)) for r,_,fs in os.walk(".") for f in fs]; z.close()'
+	rm -rf .build/package
 	@echo "Created $(RBZ)"
 
 build: build-zig
@@ -54,4 +62,8 @@ build-zig-windows:
 
 thin:
 	framework="$(MACOS_FRAMEWORK_ROOT)/SketchUpAPI.framework/Versions/A"; \
-	python3 cpp/thin_macho.py "$$framework/SketchUpAPI" "$$framework"/Frameworks/*.dylib
+	python3 cpp/thin_macho.py "$$framework/SketchUpAPI" "$$framework"/Frameworks/*.dylib && \
+	rm -rf "$$framework/_CodeSignature"
+
+version:
+	@echo $(VERSION)

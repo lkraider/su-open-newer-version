@@ -27,7 +27,11 @@ module OpenNewerVersion
   EXTENSION.creator     = "Julia Christina Eneroth"
   EXTENSION.description =
     "Convert and open models made in newer versions of SketchUp."
-  EXTENSION.version     = "1.0.8"
+  version_path = File.join(PLUGIN_DIR, "version.rb")
+  if File.exist?(version_path)
+    load version_path
+  end
+  EXTENSION.version = defined?(VERSION) ? VERSION : "0.0.0-dev"
   EXTENSION.copyright   = "2022, #{EXTENSION.creator}"
   Sketchup.register_extension(EXTENSION, true)
 

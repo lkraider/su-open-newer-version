@@ -266,3 +266,10 @@ __pycache__/
 
 # Local SDK experiments not used by the packaged converter.
 /src/ene_open_newer_version/bin/SU2017/
+
+# Package build artifacts
+/.build/
+/src/ene_open_newer_version/version.rb
+
+# Stale code signatures from framework thinning.
+_CodeSignature/
