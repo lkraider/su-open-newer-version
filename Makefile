@@ -15,7 +15,7 @@ WINDOWS_CONVERTER := $(BIN_DIR)/ConvertVersion.exe
 WINDOWS_SKETCHUP_API_DLL := $(BIN_DIR)/SketchUpAPI.dll
 WINDOWS_COMMON_PREFS_DLL := $(BIN_DIR)/SketchUpCommonPreferences.dll
 
-.PHONY: package build build-zig build-macos build-zig-macos build-windows build-zig-windows
+.PHONY: package build build-zig build-macos build-zig-macos build-windows build-zig-windows thin
 
 package:
 	git diff --quiet -- "$(SRC_DIR)" || { echo "Refusing to package with unstaged changes under $(SRC_DIR)" >&2; exit 1; }
@@ -51,3 +51,7 @@ build-zig-windows:
 	  cpp/main.cpp \
 	  "$(WINDOWS_SKETCHUP_API_DLL)" \
 	  -o "$(WINDOWS_CONVERTER)"
+
+thin:
+	framework="$(MACOS_FRAMEWORK_ROOT)/SketchUpAPI.framework/Versions/A"; \
+	python3 cpp/thin_macho.py "$$framework/SketchUpAPI" "$$framework"/Frameworks/*.dylib

@@ -94,16 +94,12 @@ seven nested dylibs, so all seven must remain packaged:
 - `libCommonPreferences.dylib`
 
 The supported size reduction is thinning every framework Mach-O binary to
-`x86_64`, because SketchUp 2017 Make is x86_64-only.
+`x86_64`, because SketchUp 2017 Make is x86_64-only. Use `make thin`
+(which delegates to `cpp/thin_macho.py`, a portable FAT-Mach-O extractor
+that does not require `lipo`):
 
 ```sh
-framework=src/ene_open_newer_version/bin/SU2026/SketchUpAPI.framework/Versions/A
-for binary in "$framework/SketchUpAPI" "$framework"/Frameworks/*.dylib; do
-  tmp="$binary.thin"
-  lipo "$binary" -thin x86_64 -output "$tmp"
-  mv "$tmp" "$binary"
-  codesign --remove-signature "$binary" 2>/dev/null || true
-done
+make thin
 ```
 
 Verify the packaged framework after thinning:
