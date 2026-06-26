@@ -19,12 +19,20 @@ def thin_one(path: Path) -> bool:
     data = path.read_bytes()
     magic = struct.unpack_from(">I", data, 0)[0]
     if magic in (FAT_MAGIC, FAT_MAGIC_64):
+        is_fat64 = magic == FAT_MAGIC_64
+        stride = 32 if is_fat64 else 20
+        fmt = ">IIQQ" if is_fat64 else ">IIII"
         nfat = struct.unpack_from(">I", data, 4)[0]
         fat_archs = []
         for i in range(nfat):
-            cputype, cpusubtype, offset, size = struct.unpack_from(
-                ">IIII", data, 8 + i * 20
-            )
+            if is_fat64:
+                cputype, cpusubtype, offset, size = struct.unpack_from(
+                    fmt, data, 8 + i * stride
+                )[:4]
+            else:
+                cputype, cpusubtype, offset, size = struct.unpack_from(
+                    fmt, data, 8 + i * stride
+                )
             fat_archs.append((cputype, offset, size))
         x86 = [(off, sz) for cpu, off, sz in fat_archs if cpu == CPU_X86_64]
         if not x86:
@@ -51,6 +59,10 @@ def thin_one(path: Path) -> bool:
         path.write_bytes(thin)
         return True
     elif struct.unpack_from("<I", data, 0)[0] == MH_MAGIC_64:
+        cpu = struct.unpack_from("<I", data, 4)[0]
+        if cpu != CPU_X86_64:
+            print(f"{path.name}: not x86_64 (CPU {hex(cpu)})", file=sys.stderr)
+            sys.exit(1)
         return False
     else:
         print(f"{path.name}: unknown format {hex(magic)}", file=sys.stderr)
